@@ -1,0 +1,19 @@
+[project]
+name = "nthu-library-benchmark"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Hardway Chen", email = "hardway120308@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "playwright>=1.65.0",
+]
+
+[project.scripts]
+main = "nthu_library_benchmark.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13.0"]
+build-backend = "uv_build"
