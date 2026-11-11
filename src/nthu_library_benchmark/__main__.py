@@ -21,6 +21,7 @@ from nthu_library_benchmark.tracker import (
 
 DEFAULT_KEYWORDS_FILE = Path("keywords.txt")
 SEARCH_TIMEOUT_MS = 10_000
+DEFAULT_SEARCH_PAUSE_SECONDS = 1.0
 
 
 def load_keywords(path: str | Path) -> tuple[str, ...]:
@@ -72,11 +73,20 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="PATH",
         help="One keyword per line (default: keywords.txt).",
     )
+    parser.add_argument(
+        "--pause",
+        type=float,
+        default=DEFAULT_SEARCH_PAUSE_SECONDS,
+        metavar="SECONDS",
+        help="Pause between searches in seconds (default: %(default)s).",
+    )
     return parser.parse_args(arguments)
 
 
 def run(arguments: Sequence[str] | None = None) -> None:
     options = parse_args(arguments)
+    if options.pause < 0:
+        raise ValueError("--pause must be non-negative")
     keywords = tuple(options.keywords or load_keywords(options.keywords_file))
     statistics = Statistics()
     shutdown_requested = Event()
@@ -104,7 +114,7 @@ def run(arguments: Sequence[str] | None = None) -> None:
 
                 print(f"開始自動搜尋，共 {len(keywords)} 個關鍵字。")
                 print("按 Ctrl+C 結束。")
-                for keyword in keywords:
+                for index, keyword in enumerate(keywords):
                     if shutdown_requested.is_set():
                         break
                     try:
@@ -123,6 +133,9 @@ def run(arguments: Sequence[str] | None = None) -> None:
                         if not shutdown_requested.is_set():
                             raise
                         break
+                    if index + 1 < len(keywords) and not shutdown_requested.is_set():
+                        print(f"等待 {options.pause:.1f} 秒後搜尋下一個關鍵字。")
+                        shutdown_requested.wait(options.pause)
             finally:
                 browser.close()
     finally:

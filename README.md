@@ -44,6 +44,7 @@ uv run main --keywords artificial intelligence database library
 --output PATH              記錄檔路徑前綴
 --stats-output PATH        保存統計報告
 --url URL                  指定 Primo 起始網址
+--pause SECONDS            搜尋之間的等待秒數（預設 2）
 ```
 
 例如：
@@ -51,6 +52,9 @@ uv run main --keywords artificial intelligence database library
 ```bash
 uv run main --headless --stats-output storage/statistics.txt
 ```
+
+搜尋之間預設等待 2 秒，以降低對服務的請求頻率；可用
+`--pause 5` 增加等待時間，或用 `--pause 0` 取消等待。
 
 ## 輸出
 
