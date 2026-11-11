@@ -23,7 +23,7 @@ uv run playwright install chromium
 uv run main
 ```
 
-程式會開啟可操作的 Chromium 視窗。請直接在瀏覽器中進行搜尋或翻頁；按 `Ctrl+C` 結束記錄。
+程式會開啟可操作的 Chromium 視窗。請直接在瀏覽器中進行搜尋或翻頁；按 `Ctrl+C` 發出停止請求。程式會先自然結束輪詢、關閉瀏覽器，再輸出統計，不會以例外中斷 Playwright 等待。
 
 也可以使用模組入口：
 
