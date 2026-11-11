@@ -18,6 +18,9 @@ from nthu_library_benchmark.tracker import (
     BrowserActivityTracker,
 )
 
+DEFAULT_KEYWORDS = ("test", "library", "science", "history", "computer")
+SEARCH_TIMEOUT_MS = 10_000
+
 
 def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -41,6 +44,13 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--stats-output",
         help="Save the final statistics report and histogram to this path.",
+    )
+    parser.add_argument(
+        "--keywords",
+        nargs="+",
+        default=DEFAULT_KEYWORDS,
+        metavar="KEYWORD",
+        help="Keywords to submit in order (default: %(default)s).",
     )
     return parser.parse_args(arguments)
 
@@ -69,13 +79,25 @@ def run(arguments: Sequence[str] | None = None) -> None:
                 tracker.attach()
                 page.add_init_script(INIT_SCRIPT)
                 page.goto(options.url, wait_until="domcontentloaded")
+                tracker.reset_operation()
 
-                print("開始操作瀏覽器；搜尋結果首次可用時會寫入記錄。")
+                print(f"開始自動搜尋，共 {len(options.keywords)} 個關鍵字。")
                 print("按 Ctrl+C 結束。")
-                while not shutdown_requested.is_set():
+                for keyword in options.keywords:
+                    if shutdown_requested.is_set():
+                        break
                     try:
-                        page.wait_for_timeout(POLL_INTERVAL_MS)
-                        tracker.check_operation_complete()
+                        previous_url = page.url
+                        print(f"\n搜尋：{keyword}")
+                        tracker.submit_keyword(keyword, timeout_ms=SEARCH_TIMEOUT_MS)
+                        page.wait_for_url(
+                            lambda url: url != previous_url,
+                            timeout=SEARCH_TIMEOUT_MS,
+                        )
+                        while not shutdown_requested.is_set():
+                            page.wait_for_timeout(POLL_INTERVAL_MS)
+                            if tracker.check_operation_complete():
+                                break
                     except PlaywrightError:
                         if not shutdown_requested.is_set():
                             raise

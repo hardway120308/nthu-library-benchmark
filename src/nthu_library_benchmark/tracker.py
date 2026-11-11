@@ -16,6 +16,17 @@ SEARCH_URL = (
 )
 POLL_INTERVAL_MS = 100
 RESULT_SELECTOR = "prm-brief-result-container"
+SEARCH_INPUT_SELECTOR = (
+    'input[type="search"]:visible, '
+    'input[aria-label*="搜尋"]:visible, input[aria-label*="Search"]:visible, '
+    'input[placeholder*="搜尋"]:visible, input[placeholder*="Search"]:visible'
+)
+SEARCH_BUTTON_SELECTOR = (
+    'button[type="submit"]:visible, '
+    'button[aria-label*="搜尋"]:visible, button[aria-label*="Search"]:visible, '
+    'button[aria-label="提交檢索"]:visible, '
+    'button[aria-label="Submit search"]:visible'
+)
 URL_EVENT_PREFIX = "__NTHU_BENCHMARK_URL__"
 
 INIT_SCRIPT = f"""
@@ -75,23 +86,41 @@ class BrowserActivityTracker:
         self.page.on("console", self._handle_console)
         self.page.on("framenavigated", self._handle_frame_navigated)
 
-    def check_operation_complete(self) -> None:
+    def check_operation_complete(self) -> bool:
         """Record completion once the first result is visible and populated."""
         if self.operation_started_at is None or self.completion_recorded:
-            return
+            return self.completion_recorded
         if self.page.url != self.operation_url:
-            return
+            return False
 
         first_result = self.page.locator(self.config.result_selector).first
         if not first_result.is_visible():
-            return
+            return False
         if not (first_result.text_content() or "").strip():
-            return
+            return False
 
         elapsed = time.perf_counter() - self.operation_started_at
         self.statistics.add(elapsed)
         self._record("READY_FOR_INTERACTIVE", self.operation_url, dom_elapsed=elapsed)
         self.completion_recorded = True
+        return True
+
+    def reset_operation(self) -> None:
+        """Ignore the initial page load before the automated keyword run."""
+        self.last_url = self.page.url
+        self.operation_started_at = None
+        self.operation_url = self.page.url
+        self.completion_recorded = False
+
+    def submit_keyword(self, keyword: str, *, timeout_ms: int = 10_000) -> None:
+        """Fill the search field and submit one keyword through the page button."""
+        input_locator = self.page.locator(SEARCH_INPUT_SELECTOR).first
+        input_locator.wait_for(state="visible", timeout=timeout_ms)
+        input_locator.fill(keyword)
+
+        button_locator = self.page.locator(SEARCH_BUTTON_SELECTOR).first
+        button_locator.wait_for(state="visible", timeout=timeout_ms)
+        button_locator.dispatch_event("click", timeout=timeout_ms)
 
     def _handle_console(self, message: ConsoleMessage) -> None:
         if message.text.startswith(URL_EVENT_PREFIX):

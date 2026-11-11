@@ -23,7 +23,7 @@ uv run playwright install chromium
 uv run main
 ```
 
-程式會開啟可操作的 Chromium 視窗。請直接在瀏覽器中進行搜尋或翻頁；按 `Ctrl+C` 發出停止請求。程式會先自然結束輪詢、關閉瀏覽器，再輸出統計，不會以例外中斷 Playwright 等待。
+程式會開啟 Chromium，自動將固定關鍵字逐一填入搜尋欄並按下搜尋按鈕。每個關鍵字完成 DOM ready 後才會進入下一筆；按 `Ctrl+C` 發出停止請求。程式會先自然結束輪詢、關閉瀏覽器，再輸出統計，不會以例外中斷 Playwright 等待。
 
 也可以使用模組入口：
 
@@ -38,6 +38,7 @@ uv run python -m nthu_library_benchmark
 --output PATH   指定記錄檔名稱前綴
 --headless      使用無頭模式執行
 --stats-output  Ctrl+C 後將統計報告與 ASCII 圖表儲存至指定路徑
+--keywords      依序執行的關鍵字列表
 ```
 
 例如：
@@ -45,6 +46,15 @@ uv run python -m nthu_library_benchmark
 ```bash
 uv run main --headless --output /tmp/nthu-records.txt
 ```
+
+指定關鍵字：
+
+```bash
+uv run main --headless --keywords artificial intelligence database library
+```
+
+預設關鍵字為 `test library science history computer`。程式會先完成初始頁面載入，
+之後才開始執行與統計這份列表，因此初始載入不會混入統計結果。
 
 ## 判定方式
 
