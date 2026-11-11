@@ -112,7 +112,5 @@ class Statistics:
             start = minimum + index * bin_size
             end = maximum if index == self.chart_bins - 1 else start + bin_size
             bar_length = round(count / largest_count * self.chart_width)
-            lines.append(
-                f"{start:7.3f}-{end:7.3f} | {'#' * bar_length} ({count})"
-            )
+            lines.append(f"{start:7.3f}-{end:7.3f} | {'#' * bar_length} ({count})")
         return "\n".join(lines)

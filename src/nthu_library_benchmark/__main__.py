@@ -118,11 +118,11 @@ def run(arguments: Sequence[str] | None = None) -> None:
                     if shutdown_requested.is_set():
                         break
                     try:
-                        previous_url = page.url
                         print(f"\n搜尋：{keyword}")
                         tracker.submit_keyword(keyword, timeout_ms=SEARCH_TIMEOUT_MS)
+                        # Wait for url changed
                         page.wait_for_url(
-                            lambda url: url != previous_url,
+                            lambda url: url != page.url,
                             timeout=SEARCH_TIMEOUT_MS,
                         )
                         while not shutdown_requested.is_set():
