@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from playwright.sync_api import ConsoleMessage, Frame, Page
 
+from nthu_library_benchmark.statistics import Statistics
 from nthu_library_benchmark.storage import Storage
 
 SEARCH_URL = (
@@ -56,10 +57,12 @@ class BrowserActivityTracker:
         self,
         page: Page,
         storage: Storage,
+        statistics: Statistics | None = None,
         config: TrackerConfig | None = None,
     ) -> None:
         self.page = page
         self.storage = storage
+        self.statistics = statistics or Statistics()
         self.config = config or TrackerConfig()
         self.last_url = page.url
         self.last_event_at = time.perf_counter()
@@ -86,6 +89,7 @@ class BrowserActivityTracker:
             return
 
         elapsed = time.perf_counter() - self.operation_started_at
+        self.statistics.add(elapsed)
         self._record("READY_FOR_INTERACTIVE", self.operation_url, dom_elapsed=elapsed)
         self.completion_recorded = True
 

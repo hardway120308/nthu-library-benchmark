@@ -37,6 +37,7 @@ uv run python -m nthu_library_benchmark
 --url URL       指定啟動頁面
 --output PATH   指定記錄檔名稱前綴
 --headless      使用無頭模式執行
+--stats-output  Ctrl+C 後將統計報告與 ASCII 圖表儲存至指定路徑
 ```
 
 例如：
@@ -60,12 +61,24 @@ uv run main --headless --output /tmp/nthu-records.txt
 記錄會寫入 `storage/records_YYYYMMDD_HHMMSS.txt`。目前只會持久化事件記錄，例如：
 
 ```text
-URL             delta=0.012s url=https://nthu.primo.exlibrisgroup.com/discovery/search?...
-DONE            delta=0.351s dom_elapsed=0.351s url=https://nthu.primo.exlibrisgroup.com/discovery/search?...
+URL     delta=0.012s
+DONE    delta=0.351s    dom_elapsed=0.351s
 ```
 
 - `delta`：距離上一個記錄事件的秒數。
 - `dom_elapsed`：從該 URL 變更到首筆搜尋記錄可見的秒數。
+
+按下 `Ctrl+C` 後，程式會針對本次執行成功完成的 `dom_elapsed` 輸出：
+
+- 樣本數、平均數、樣本標準差、最小值與最大值。
+- 第一四分位數（Q1）、中位數與第三四分位數（Q3）。
+- 以 ASCII histogram 顯示各時間區間的樣本數。
+
+若要同時保存統計報告：
+
+```bash
+uv run main --stats-output storage/statistics.txt
+```
 
 ## 開發檢查
 

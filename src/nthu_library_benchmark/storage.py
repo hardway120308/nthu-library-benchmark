@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-
 DEFAULT_RECORD_PATH = Path("storage/records.txt")
 RECORD_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 

@@ -5,6 +5,7 @@ from collections.abc import Sequence
 
 from playwright.sync_api import sync_playwright
 
+from nthu_library_benchmark.statistics import Statistics
 from nthu_library_benchmark.storage import DEFAULT_RECORD_PATH, Storage
 from nthu_library_benchmark.tracker import (
     INIT_SCRIPT,
@@ -33,17 +34,26 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Run Chromium without opening a visible browser window.",
     )
+    parser.add_argument(
+        "--stats-output",
+        help="Save the final statistics report and histogram to this path.",
+    )
     return parser.parse_args(arguments)
 
 
 def run(arguments: Sequence[str] | None = None) -> None:
     options = parse_args(arguments)
+    statistics = Statistics()
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=options.headless)
         try:
             page = browser.new_page()
-            tracker = BrowserActivityTracker(page, Storage(options.output))
+            tracker = BrowserActivityTracker(
+                page,
+                Storage(options.output),
+                statistics=statistics,
+            )
             tracker.attach()
             page.add_init_script(INIT_SCRIPT)
             page.goto(options.url, wait_until="domcontentloaded")
@@ -55,6 +65,11 @@ def run(arguments: Sequence[str] | None = None) -> None:
                 tracker.check_operation_complete()
         except KeyboardInterrupt:
             print("\n已停止記錄。")
+            report = statistics.format_report()
+            print(f"\n{report}")
+            if options.stats_output:
+                report_path = statistics.write_report(options.stats_output)
+                print(f"\n統計報告已儲存至：{report_path}")
         finally:
             browser.close()
 
