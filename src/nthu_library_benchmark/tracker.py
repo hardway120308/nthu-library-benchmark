@@ -1,6 +1,9 @@
-import time
+from __future__ import annotations
 
-from playwright.sync_api import ConsoleMessage, Page
+import time
+from dataclasses import dataclass
+
+from playwright.sync_api import ConsoleMessage, Frame, Page
 
 from nthu_library_benchmark.storage import Storage
 
@@ -12,90 +15,109 @@ SEARCH_URL = (
 )
 POLL_INTERVAL_MS = 100
 RESULT_SELECTOR = "prm-brief-result-container"
+URL_EVENT_PREFIX = "__NTHU_BENCHMARK_URL__"
 
-INIT_SCRIPT = """
-    const notifyUrlChange = () => console.log('__URL__' + location.href);
-    const pushState = history.pushState;
-    const replaceState = history.replaceState;
+INIT_SCRIPT = f"""
+    (() => {{
+        const notifyUrlChange = () => console.log(
+            '{URL_EVENT_PREFIX}' + location.href
+        );
+        const originalPushState = history.pushState;
+        const originalReplaceState = history.replaceState;
 
-    history.pushState = function(...args) {
-        const result = pushState.apply(this, args);
-        notifyUrlChange();
-        return result;
-    };
-    history.replaceState = function(...args) {
-        const result = replaceState.apply(this, args);
-        notifyUrlChange();
-        return result;
-    };
+        history.pushState = function(...args) {{
+            const result = originalPushState.apply(this, args);
+            notifyUrlChange();
+            return result;
+        }};
+        history.replaceState = function(...args) {{
+            const result = originalReplaceState.apply(this, args);
+            notifyUrlChange();
+            return result;
+        }};
 
-    addEventListener('popstate', notifyUrlChange);
-    addEventListener('hashchange', notifyUrlChange);
+        addEventListener('popstate', notifyUrlChange);
+        addEventListener('hashchange', notifyUrlChange);
+    }})();
 """
 
 
-class BrowserActivityTracker:
-    """Collect browser activity and report when each operation settles."""
+@dataclass(frozen=True)
+class TrackerConfig:
+    """Settings for detecting when search results first become usable."""
 
-    def __init__(self, page: Page, storage: Storage):
+    result_selector: str = RESULT_SELECTOR
+
+
+class BrowserActivityTracker:
+    """Measure time from each URL change until the first visible result."""
+
+    def __init__(
+        self,
+        page: Page,
+        storage: Storage,
+        config: TrackerConfig | None = None,
+    ) -> None:
         self.page = page
-        self.start_time = time.perf_counter()
-        self.last_time = self.start_time
+        self.storage = storage
+        self.config = config or TrackerConfig()
         self.last_url = page.url
+        self.last_event_at = time.perf_counter()
         self.operation_started_at: float | None = None
         self.operation_url = page.url
         self.completion_recorded = False
-        self.storage: Storage = storage
 
-    def record(self, action: str, url: str, *, elapsed: float | None = None) -> None:
-        now = time.perf_counter()
-        log_message = f"{action:<15} delta={now - self.last_time:.3f}s url={url}"
-        if elapsed is not None:
-            log_message = (
-                f"{action:<15} delta={now - self.last_time:.3f}s "
-                f"dom_elapsed={elapsed:.3f}s url={url}"
-            )
-        self.storage.record_new_line_to_file(log_message)
-        print(log_message)
-        self.last_time = now
-
-    def mark_operation(self, url: str) -> None:
-        self.operation_started_at = time.perf_counter()
-        self.operation_url = url
-        self.completion_recorded = False
-
-    def record_url(self, url: str) -> None:
-        if url == self.last_url:
-            return
-        self.last_url = url
-        self.record("URL", url)
-        print(f"URL changed to {url}")
-        self.mark_operation(url)
-
-    def handle_console(self, message: ConsoleMessage) -> None:
-        if message.text.startswith("__URL__"):
-            self.record_url(message.text.removeprefix("__URL__"))
+    def attach(self) -> None:
+        """Register the page events used by the tracker."""
+        self.page.on("console", self._handle_console)
+        self.page.on("framenavigated", self._handle_frame_navigated)
 
     def check_operation_complete(self) -> None:
+        """Record completion once the first result is visible and populated."""
         if self.operation_started_at is None or self.completion_recorded:
             return
         if self.page.url != self.operation_url:
             return
 
-        first_result = self.page.locator(RESULT_SELECTOR).first
-        if not first_result.is_visible() or not (first_result.text_content() or "").strip():
+        first_result = self.page.locator(self.config.result_selector).first
+        if not first_result.is_visible():
+            return
+        if not (first_result.text_content() or "").strip():
             return
 
-        now = time.perf_counter()
-        dom_elapsed = now - self.operation_started_at
-        self.record("DONE", self.operation_url, elapsed=dom_elapsed)
+        elapsed = time.perf_counter() - self.operation_started_at
+        self._record("READY_FOR_INTERACTIVE", self.operation_url, dom_elapsed=elapsed)
         self.completion_recorded = True
 
-    def attach(self) -> None:
-        self.page.on(
-            "framenavigated",
-            lambda frame: (
-                self.record_url(frame.url) if frame == self.page.main_frame else None
-            ),
-        )
-        self.page.on("console", self.handle_console)
+    def _handle_console(self, message: ConsoleMessage) -> None:
+        if message.text.startswith(URL_EVENT_PREFIX):
+            self._record_url(message.text.removeprefix(URL_EVENT_PREFIX))
+
+    def _handle_frame_navigated(self, frame: Frame) -> None:
+        if frame == self.page.main_frame:
+            self._record_url(frame.url)
+
+    def _record_url(self, url: str) -> None:
+        if url == self.last_url:
+            return
+
+        self.last_url = url
+        self._record("URLCHANGE", url)
+        self.operation_started_at = time.perf_counter()
+        self.operation_url = url
+        self.completion_recorded = False
+
+    def _record(
+        self,
+        action: str,
+        url: str,
+        *,
+        dom_elapsed: float | None = None,
+    ) -> None:
+        now = time.perf_counter()
+        message = f"{action}\tdelta={now - self.last_event_at:.3f}s"
+        if dom_elapsed is not None:
+            message += f"\tdom_elapsed={dom_elapsed:.3f}s"
+        self.storage.write(message)
+        print(message)
+        self.last_event_at = now
