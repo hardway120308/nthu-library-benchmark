@@ -101,12 +101,12 @@ class BrowserActivityTracker:
 
         elapsed = time.perf_counter() - self.operation_started_at
         self.statistics.add(elapsed)
-        self._record("READY_FOR_INTERACTIVE", self.operation_url, dom_elapsed=elapsed)
+        self._record("READY_FOR_INTERACTIVE", dom_elapsed=elapsed)
         self.completion_recorded = True
         return True
 
     def reset_operation(self) -> None:
-        """Ignore the initial page load before the automated keyword run."""
+        """Reset timing state after the initial page load."""
         self.last_url = self.page.url
         self.operation_started_at = None
         self.operation_url = self.page.url
@@ -135,7 +135,7 @@ class BrowserActivityTracker:
             return
 
         self.last_url = url
-        self._record("URLCHANGE", url)
+        self._record("URLCHANGE")
         self.operation_started_at = time.perf_counter()
         self.operation_url = url
         self.completion_recorded = False
@@ -143,7 +143,6 @@ class BrowserActivityTracker:
     def _record(
         self,
         action: str,
-        url: str,
         *,
         dom_elapsed: float | None = None,
     ) -> None:

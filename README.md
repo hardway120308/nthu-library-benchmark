@@ -37,8 +37,9 @@ uv run python -m nthu_library_benchmark
 --url URL       指定啟動頁面
 --output PATH   指定記錄檔名稱前綴
 --headless      使用無頭模式執行
---stats-output  Ctrl+C 後將統計報告與 ASCII 圖表儲存至指定路徑
---keywords      依序執行的關鍵字列表
+--stats-output PATH  Ctrl+C 後將統計報告與 ASCII 圖表儲存至指定路徑
+--keywords KEYWORD  直接指定要執行的關鍵字列表
+--keywords-file PATH  從檔案載入關鍵字（預設：keywords.txt）
 ```
 
 例如：
@@ -47,14 +48,22 @@ uv run python -m nthu_library_benchmark
 uv run main --headless --output /tmp/nthu-records.txt
 ```
 
-指定關鍵字：
+預設會從根目錄的 [keywords.txt](./keywords.txt) 載入 1000 個跨主題的書籍搜尋詞，
+檔案格式是一行一個關鍵字，也支援空白行與 `#` 開頭的註解。
+
+指定自訂關鍵字檔案：
+
+```bash
+uv run main --headless --keywords-file my-keywords.txt
+```
+
+也可以直接指定少量關鍵字（會覆蓋關鍵字檔案）：
 
 ```bash
 uv run main --headless --keywords artificial intelligence database library
 ```
 
-預設關鍵字為 `test library science history computer`。程式會先完成初始頁面載入，
-之後才開始執行與統計這份列表，因此初始載入不會混入統計結果。
+程式會先完成初始頁面載入，之後才開始執行與統計關鍵字列表，因此初始載入不會混入統計結果。
 
 ## 判定方式
 
@@ -71,8 +80,8 @@ uv run main --headless --keywords artificial intelligence database library
 記錄會寫入 `storage/records_YYYYMMDD_HHMMSS.txt`。目前只會持久化事件記錄，例如：
 
 ```text
-URL     delta=0.012s
-DONE    delta=0.351s    dom_elapsed=0.351s
+URLCHANGE               delta=0.012s
+READY_FOR_INTERACTIVE   delta=0.351s    dom_elapsed=0.351s
 ```
 
 - `delta`：距離上一個記錄事件的秒數。

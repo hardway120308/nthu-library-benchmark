@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import signal
 from collections.abc import Sequence
+from pathlib import Path
 from threading import Event
 from types import FrameType
 
@@ -18,8 +19,21 @@ from nthu_library_benchmark.tracker import (
     BrowserActivityTracker,
 )
 
-DEFAULT_KEYWORDS = ("test", "library", "science", "history", "computer")
+DEFAULT_KEYWORDS_FILE = Path("keywords.txt")
 SEARCH_TIMEOUT_MS = 10_000
+
+
+def load_keywords(path: str | Path) -> tuple[str, ...]:
+    """Load non-empty, non-comment keyword lines from a text file."""
+    keyword_path = Path(path)
+    keywords = tuple(
+        line.strip()
+        for line in keyword_path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+    if not keywords:
+        raise ValueError(f"Keyword file is empty: {keyword_path}")
+    return keywords
 
 
 def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
@@ -45,18 +59,25 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         "--stats-output",
         help="Save the final statistics report and histogram to this path.",
     )
-    parser.add_argument(
+    keyword_group = parser.add_mutually_exclusive_group()
+    keyword_group.add_argument(
         "--keywords",
         nargs="+",
-        default=DEFAULT_KEYWORDS,
         metavar="KEYWORD",
-        help="Keywords to submit in order (default: %(default)s).",
+        help="Keywords to submit in order instead of the keyword file.",
+    )
+    keyword_group.add_argument(
+        "--keywords-file",
+        default=str(DEFAULT_KEYWORDS_FILE),
+        metavar="PATH",
+        help="One keyword per line (default: keywords.txt).",
     )
     return parser.parse_args(arguments)
 
 
 def run(arguments: Sequence[str] | None = None) -> None:
     options = parse_args(arguments)
+    keywords = tuple(options.keywords or load_keywords(options.keywords_file))
     statistics = Statistics()
     shutdown_requested = Event()
 
@@ -81,9 +102,9 @@ def run(arguments: Sequence[str] | None = None) -> None:
                 page.goto(options.url, wait_until="domcontentloaded")
                 tracker.reset_operation()
 
-                print(f"開始自動搜尋，共 {len(options.keywords)} 個關鍵字。")
+                print(f"開始自動搜尋，共 {len(keywords)} 個關鍵字。")
                 print("按 Ctrl+C 結束。")
-                for keyword in options.keywords:
+                for keyword in keywords:
                     if shutdown_requested.is_set():
                         break
                     try:

@@ -32,11 +32,6 @@ class Statistics:
         self.chart_width = chart_width
         self._dom_elapsed: list[float] = []
 
-    @property
-    def values(self) -> tuple[float, ...]:
-        """Return recorded values in insertion order."""
-        return tuple(self._dom_elapsed)
-
     def add(self, dom_elapsed: float) -> None:
         """Add one non-negative DOM readiness duration in seconds."""
         if not isfinite(dom_elapsed) or dom_elapsed < 0:
