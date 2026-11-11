@@ -1,6 +1,6 @@
 import time
 
-from playwright.sync_api import ConsoleMessage, Page, Request
+from playwright.sync_api import ConsoleMessage, Page
 
 from nthu_library_benchmark.storage import Storage
 
@@ -10,8 +10,8 @@ SEARCH_URL = (
     "search_scope=MyInst_and_CI_NoResearch&"
     "vid=886UST_NTHU:886UST_NTHU&lang=zh-tw&offset=0"
 )
-QUIET_PERIOD_SECONDS = 0.8
 POLL_INTERVAL_MS = 100
+RESULT_SELECTOR = "prm-brief-result-container"
 
 INIT_SCRIPT = """
     const notifyUrlChange = () => console.log('__URL__' + location.href);
@@ -42,15 +42,19 @@ class BrowserActivityTracker:
         self.start_time = time.perf_counter()
         self.last_time = self.start_time
         self.last_url = page.url
-        self.in_flight_requests: set[Request] = set()
         self.operation_started_at: float | None = None
         self.operation_url = page.url
         self.completion_recorded = False
         self.storage: Storage = storage
 
-    def record(self, action: str, url: str) -> None:
+    def record(self, action: str, url: str, *, elapsed: float | None = None) -> None:
         now = time.perf_counter()
         log_message = f"{action:<15} delta={now - self.last_time:.3f}s url={url}"
+        if elapsed is not None:
+            log_message = (
+                f"{action:<15} delta={now - self.last_time:.3f}s "
+                f"dom_elapsed={elapsed:.3f}s url={url}"
+            )
         self.storage.record_new_line_to_file(log_message)
         print(log_message)
         self.last_time = now
@@ -75,12 +79,17 @@ class BrowserActivityTracker:
     def check_operation_complete(self) -> None:
         if self.operation_started_at is None or self.completion_recorded:
             return
-        quiet_long_enough = (
-            time.perf_counter() - self.operation_started_at >= QUIET_PERIOD_SECONDS
-        )
-        if not self.in_flight_requests and quiet_long_enough:
-            self.record("DONE", self.operation_url)
-            self.completion_recorded = True
+        if self.page.url != self.operation_url:
+            return
+
+        first_result = self.page.locator(RESULT_SELECTOR).first
+        if not first_result.is_visible() or not (first_result.text_content() or "").strip():
+            return
+
+        now = time.perf_counter()
+        dom_elapsed = now - self.operation_started_at
+        self.record("DONE", self.operation_url, elapsed=dom_elapsed)
+        self.completion_recorded = True
 
     def attach(self) -> None:
         self.page.on(
@@ -90,12 +99,3 @@ class BrowserActivityTracker:
             ),
         )
         self.page.on("console", self.handle_console)
-        self.page.on("request", lambda request: self.in_flight_requests.add(request))
-        self.page.on(
-            "requestfinished",
-            lambda request: self.in_flight_requests.discard(request),
-        )
-        self.page.on(
-            "requestfailed",
-            lambda request: self.in_flight_requests.discard(request),
-        )
